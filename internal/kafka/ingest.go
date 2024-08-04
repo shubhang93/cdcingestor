@@ -19,7 +19,7 @@ type IngestorConfig struct {
 }
 
 type EventKV struct {
-	Key   json.RawMessage `json:"key"`
+	Key   string          `json:"key"`
 	Value json.RawMessage `json:"value"`
 }
 
@@ -32,13 +32,13 @@ type Ingestor struct {
 	Config IngestorConfig
 }
 
-func (i *Ingestor) Run() error {
+func (i *Ingestor) Ingest() (int, error) {
 	kp, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers": i.Config.BootstrapServer,
 		"linger.ms":         25,
 	})
 	if err != nil {
-		return fmt.Errorf("error creating kafka producer:%w", err)
+		return 0, fmt.Errorf("error creating kafka producer:%w", err)
 	}
 
 	deliveryEvents := kp.Events()
@@ -59,19 +59,21 @@ func (i *Ingestor) Run() error {
 	}()
 
 	count := 0
-	var eof bool
 	br := bufio.NewReader(i.Source)
 	batch := make([]EventKV, i.Config.ChunkSize)
-	for !eof {
+	for {
 		line, err := br.ReadBytes('\n')
 		if err != nil && err != io.EOF {
-			return fmt.Errorf("error reading line %d:%w", count+1, err)
+			return count + 1, fmt.Errorf("error reading line %d:%w", count+1, err)
 		}
-		eof = err == io.EOF
+
+		if err == io.EOF && len(line) < 1 {
+			break
+		}
 
 		var event CDCEvent
 		if err := json.Unmarshal(line, &event); err != nil {
-			return fmt.Errorf("error unmarshaling cdc event on line:%d:%w", count+1, err)
+			return count + 1, fmt.Errorf("error unmarshaling cdc event on line:%d:%w", count+1, err)
 		}
 
 		batch = append(batch, event.After)
@@ -82,22 +84,22 @@ func (i *Ingestor) Run() error {
 				Partition: kafka.PartitionAny,
 			},
 			Value:  event.After.Value,
-			Key:    event.After.Key,
+			Key:    []byte(event.After.Key),
 			Opaque: event.After.Key,
 		}
 
 		if err := kp.Produce(&message, nil); err != nil {
-			return fmt.Errorf("kafka produce error for line:%d:%w", count+1, err)
+			return count + 1, fmt.Errorf("kafka produce error for line:%d:%w", count+1, err)
 		}
 		count++
 	}
 
 	unflushed := kp.Flush(producerFlushTimeoutMS)
 	if unflushed > 0 {
-		return fmt.Errorf("producer failed to flush %d messages", unflushed)
+		return count - unflushed, fmt.Errorf("producer failed to flush %d messages", unflushed)
 	}
 
-	return nil
+	return count, nil
 }
 
 func handleDeliveryEvent(e kafka.Event) error {

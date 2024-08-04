@@ -1,69 +1,102 @@
 package kafka
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"math/rand"
-	"reflect"
+	"github.com/google/go-cmp/cmp"
+	"math/rand/v2"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestIngestor_Run(t *testing.T) {
 
-	jsonLines := `{"after": {"key": "foo1","value":{"data": "bar"}}}
+	type TestCase struct {
+		Input     string
+		Want      []EventKV
+		WantCount int
+	}
+
+	var cases = map[string]TestCase{
+		"json lines contain valid records": {
+			Input: `{"after": {"key": "foo1","value":{"data": "bar"}}}
 {"after": {"key": "foo2","value":{"data": "baz"}}}
 {"after": {"key": "foo3","value":{"data": "bar"}}}
 {"after": {"key": "foo4","value":{"data": "foo42"}}}
-{"after": {"key": "foo5","value":{"data": "foobar"}}}`
-
-	stream := strings.NewReader(jsonLines)
-
-	n := rand.Uint32()
-	topic := fmt.Sprintf("test_topic_%x", n)
-
-	ig := Ingestor{
-		Source: stream,
-		Config: IngestorConfig{
-			BootstrapServer: "localhost:9092",
-			Topic:           topic,
+{"after": {"key": "foo5","value":{"data": "foobar"}}}`,
+			Want: []EventKV{{
+				Key:   "foo1",
+				Value: json.RawMessage(`{"data": "bar"}`),
+			}, {
+				Key:   "foo2",
+				Value: json.RawMessage(`{"data": "baz"}`),
+			}, {
+				Key:   "foo3",
+				Value: json.RawMessage(`{"data": "bar"}`),
+			}, {
+				Key:   "foo4",
+				Value: json.RawMessage(`{"data": "foo42"}`),
+			}, {
+				Key:   "foo5",
+				Value: json.RawMessage(`{"data": "foobar"}`),
+			}},
+			WantCount: 5,
 		},
 	}
-	err := ig.Run()
-	if err != nil {
-		t.Errorf("error ingesting:%v", err)
-		return
-	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			stream := strings.NewReader(tc.Input)
+			n := rand.Uint32()
+			topic := fmt.Sprintf("test_topic_%x", n)
 
-	var want []EventKV
-	jd := json.NewDecoder(stream)
-	for jd.More() {
-		var ekv EventKV
-		if err := jd.Decode(&ekv); err != nil {
-			t.Errorf("error decoding json")
-			return
-		}
-		want = append(want, ekv)
-	}
+			t.Logf("topic name:%s\n", topic)
 
-	got, err := consume("localhost:9092", topic)
-	if err != nil {
-		t.Errorf("error consuming:%v", err)
-		return
-	}
+			ig := Ingestor{
+				Source: stream,
+				Config: IngestorConfig{
+					BootstrapServer: "localhost:9092",
+					Topic:           topic,
+				},
+			}
 
-	if !reflect.DeepEqual(want, got) {
-		t.Error("want != got")
+			ingestCount, err := ig.Ingest()
+			if err != nil {
+				t.Errorf("error ingesting:%v", err)
+				return
+			}
+
+			if diff := cmp.Diff(tc.WantCount, ingestCount); diff != "" {
+				t.Errorf("--WantCount ++GotCount\n%s", diff)
+				return
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			got, err := consume(ctx, "localhost:9092", topic)
+			if err != nil {
+				t.Errorf("error consuming:%v", err)
+				return
+			}
+
+			if diff := cmp.Diff(tc.Want, got); diff != "" {
+				t.Errorf("--Want ++Got:\n%s", diff)
+			}
+		})
 	}
 
 }
 
-func consume(bootstrapServer string, topic string) ([]EventKV, error) {
+func consume(ctx context.Context, bootstrapServer string, topic string) ([]EventKV, error) {
+
 	kc, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": bootstrapServer,
 		"group.id":          "test_consumer",
+		"auto.offset.reset": "earliest",
 	})
+
 	if err != nil {
 		return nil, err
 	}
@@ -72,18 +105,24 @@ func consume(bootstrapServer string, topic string) ([]EventKV, error) {
 	}
 
 	var ekvs []EventKV
-	e := kc.Poll(100)
-	switch ev := e.(type) {
-	case *kafka.Message:
-		ekv := EventKV{
-			Key:   ev.Key,
-			Value: ev.Value,
-		}
-		ekvs = append(ekvs, ekv)
-	case kafka.Error:
-		return nil, ev
-	default:
 
+	for {
+		select {
+		case <-ctx.Done():
+			return ekvs, nil
+		default:
+		}
+		e := kc.Poll(100)
+		switch ev := e.(type) {
+		case *kafka.Message:
+			ekv := EventKV{
+				Key:   string(ev.Key),
+				Value: ev.Value,
+			}
+			ekvs = append(ekvs, ekv)
+		case kafka.Error:
+			return nil, ev
+		default:
+		}
 	}
-	return ekvs, nil
 }
