@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/shubhang93/cdcingestor/internal/kafka/models"
@@ -25,9 +26,13 @@ func ReadBatch(ctx context.Context, c MsgReader, timeout time.Duration, batch []
 			return i, nil
 		default:
 			msg, err := c.ReadMessage(timeout)
-			if err != nil {
-				return i, fmt.Errorf("error reading message:%v", err)
+			var kafkaErr kafka.Error
+			ok := errors.As(err, &kafkaErr)
+
+			if ok && kafkaErr.IsFatal() {
+				return 0, fmt.Errorf("read message fatal error:%w", err)
 			}
+
 			if msg == nil {
 				continue
 			}

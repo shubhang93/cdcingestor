@@ -79,6 +79,8 @@ func (ing *Ingestor) Run(ctx context.Context) error {
 
 func (ing *Ingestor) init() error {
 
+	ing.sendChan = make(chan []*kafmodels.EventKV)
+
 	if ing.consumerInitFunc == nil {
 		ing.consumerInitFunc = newConsumer
 	}
@@ -106,12 +108,13 @@ func newConsumer(config KafkaConfig) (kafka.MsgReader, error) {
 	kc, err := ckafka.NewConsumer(&ckafka.ConfigMap{
 		"bootstrap.servers": config.BootstrapServer,
 		"group.id":          "cdc_consumer",
+		"debug":             "broker",
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating consumer:%s", err.Error())
 	}
 	if err := kc.Subscribe(config.Topic, nil); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("subscription error:%w", err)
 	}
 	return kc, nil
 }
