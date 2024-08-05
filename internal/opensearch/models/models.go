@@ -56,7 +56,7 @@ type OpenSearchError struct {
 
 type OpenSearchMeta struct {
 	Index string `json:"_index"`
-	ID    string `json:"id"`
+	ID    string `json:"_id"`
 }
 type OpenSearchActionMetadata struct {
 	Create OpenSearchMeta `json:"create"`

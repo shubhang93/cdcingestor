@@ -4,12 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"github.com/shubhang93/cdcingestor/internal/kafka"
+	"github.com/shubhang93/cdcingestor/internal/opensearch"
 	"os"
 )
 
 const usage = `Usage:
-cdcingestor kafka -file="stream.jsonl -boostrap-server=localhost:9092 -topic=topic"
-cdcingestor opensearch -bootstrap-server=localhost:9092 -topic=topic`
+cdcingestor push-kafka -file="stream.jsonl -boostrap-server=localhost:9092 -topic=topic"
+cdcingestor ingest-opensearch -bootstrap-server=localhost:9092 -topic=topic`
 
 func main() {
 	args := os.Args[1:]
@@ -17,21 +18,22 @@ func main() {
 		_, _ = fmt.Fprintln(os.Stderr, usage)
 		os.Exit(1)
 	}
-	cdcFlags := flag.NewFlagSet("cdc", flag.ExitOnError)
-	filename := cdcFlags.String("file", "", "-file=stream.jsonl")
-	bootstrapServer := cdcFlags.String("bootstrap-server", "", "-bootstrap-server=localhost:9092")
-	topic := cdcFlags.String("topic", "", "-topic=topic")
 
 	cmd := args[0]
 	args = args[1:]
 	switch cmd {
-	case "kafka":
-		if err := cdcFlags.Parse(args); err != nil {
+	case "push-kafka":
+		flags := flag.NewFlagSet("kafka", flag.ExitOnError)
+		bootstrapServer := flags.String("bootstrap-server", "", "-bootstrap-server=localhost:9092")
+		topic := flags.String("topic", "", "-topic=topic")
+		filename := flags.String("file", "", "-file=stream.jsonl")
+
+		if err := flags.Parse(args); err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, usage)
 			os.Exit(1)
 		}
 		if *topic == "" || *bootstrapServer == "" || *filename == "" {
-			cdcFlags.PrintDefaults()
+			flags.PrintDefaults()
 			os.Exit(1)
 		}
 
@@ -54,8 +56,17 @@ func main() {
 			os.Exit(1)
 		}
 		_, _ = fmt.Fprintf(os.Stdout, "ingested %d records", n)
-	case "opensearch":
+	case "ingest-opensearch":
+		flags := flag.NewFlagSet("kafka", flag.ExitOnError)
+		bootstrapServer := flags.String("bootstrap-server", "", "-bootstrap-server=localhost:9092")
+		topic := flags.String("topic", "", "-topic=topic")
 
+		if err := flags.Parse(args); err != nil {
+			if *topic == "" || *bootstrapServer == "" {
+				flags.PrintDefaults()
+			}
+		}
+		ing := opensearch.Ingestor{}
 	}
 
 }

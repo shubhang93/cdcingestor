@@ -2,16 +2,12 @@ package opensearch
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	conflkafka "github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	ckafka "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/shubhang93/cdcingestor/internal/kafka"
 	kafmodels "github.com/shubhang93/cdcingestor/internal/kafka/models"
-	"github.com/shubhang93/cdcingestor/internal/opensearch/models"
-	"io"
+	"log"
 	"net/http"
-	"path"
 	"sync"
 	"time"
 )
@@ -27,36 +23,42 @@ type Config struct {
 }
 
 type Ingestor struct {
-	kafkaConfig KafkaConfig
-	config      Config
-	hc          *http.Client
-	kc          *conflkafka.Consumer
-	sendChan    chan []*kafmodels.EventKV
+	KafkaConfig      KafkaConfig
+	OpenSearchConfig Config
+	consumerInitFunc func(config KafkaConfig) (kafka.MsgReader, error)
+	clientInitFunc   func() httpDoer
+	hc               httpDoer
+	kc               kafka.MsgReader
+	sendChan         chan []*kafmodels.EventKV
 }
 
 func (ing *Ingestor) Run(ctx context.Context) error {
-	kc, err := kafka.NewConsumer(ing.kafkaConfig.BootstrapServer, ing.kafkaConfig.Topic)
-	if err != nil {
-		return err
-	}
-
 	var wg sync.WaitGroup
-	for i := 0; i < ing.config.Concurrency; i++ {
+	for i := 0; i < ing.OpenSearchConfig.Concurrency; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for range ing.sendChan {
-
+			for chunk := range ing.sendChan {
+				if err := postBulk(ing.hc, "cdc", chunk); err != nil {
+					log.Println("bulk post failed with error:", err.Error())
+				}
 			}
 		}()
 	}
-	defer kc.Close()
+	defer ing.kc.Close()
 
 	batch := make([]*kafmodels.EventKV, 100)
 	var readErr error
-	for {
-		n, err := kafka.ReadBatch(ctx, kc, time.Millisecond*100, batch)
+	run := true
+	for run {
+		select {
+		case <-ctx.Done():
+			run = false
+		default:
+		}
+		n, err := kafka.ReadBatch(ctx, ing.kc, time.Millisecond*100, batch)
 		if err != nil {
+			readErr = err
 			break
 		}
 		if n > 0 {
@@ -66,59 +68,37 @@ func (ing *Ingestor) Run(ctx context.Context) error {
 			clear(batch)
 		}
 	}
-
+	close(ing.sendChan)
 	wg.Wait()
 	return readErr
 }
 
-func openSearchBulkPost(client *http.Client, body io.Reader) error {
-	req, err := http.NewRequest(http.MethodPost, "http://localhost:9200/cdc/_bulk", body)
+func (ing *Ingestor) init() error {
 
+	if ing.consumerInitFunc == nil {
+		ing.consumerInitFunc = func(config KafkaConfig) (kafka.MsgReader, error) {
+			return ckafka.NewConsumer(&ckafka.ConfigMap{
+				"boostrap.servers": config.BootstrapServer,
+				"group.id":         "cdc_consumer",
+			})
+		}
+	}
+
+	if ing.clientInitFunc == nil {
+		ing.clientInitFunc = func() httpDoer {
+			return &http.Client{}
+		}
+	}
+
+	kc, err := ing.consumerInitFunc(ing.KafkaConfig)
 	if err != nil {
-		return fmt.Errorf("error making request:%w", err)
+		return fmt.Errorf("consumer init error:%w", err)
 	}
+	ing.kc = kc
 
-	req.Header.Set("Content-Type", "application/jsonl")
+	client := ing.clientInitFunc()
+	ing.hc = client
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("error sending http request:%w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("http request failed with code:%d", resp.StatusCode)
-	}
-	defer resp.Body.Close()
-	jd := json.NewDecoder(resp.Body)
-
-	var osr models.OpenSearchResponse
-	err = jd.Decode(&osr)
-	if err != nil {
-		return fmt.Errorf("error decoding opensearch response:%w", err)
-	}
-	if osr.Errors {
-		return errors.New("open search found some errors")
-	}
 	return nil
-}
 
-func encodeJSONLines(data []*kafmodels.EventKV, dest io.Writer) error {
-	je := json.NewEncoder(dest)
-	for i, event := range data {
-		id := path.Base(event.Key)
-		meta := models.OpenSearchMeta{
-			Index: "cdc",
-			ID:    id,
-		}
-		err := je.Encode(models.OpenSearchActionMetadata{Create: meta})
-		if err != nil {
-			return fmt.Errorf("json encode error for meta %d:%w", i, err)
-		}
-
-		if err := je.Encode(event.Value); err != nil {
-			return fmt.Errorf("json encode error for data %d:%w", i, err)
-		}
-
-	}
-	return nil
 }

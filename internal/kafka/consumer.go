@@ -5,24 +5,13 @@ import (
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/shubhang93/cdcingestor/internal/kafka/models"
+	"io"
 	"time"
 )
 
-func NewConsumer(boostrapServer string, topic string) (*kafka.Consumer, error) {
-	kc, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": boostrapServer,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if err := kc.Subscribe(topic, nil); err != nil {
-		return nil, err
-	}
-	return kc, nil
-}
-
 type MsgReader interface {
 	ReadMessage(timeout time.Duration) (*kafka.Message, error)
+	io.Closer
 }
 
 func ReadBatch(ctx context.Context, c MsgReader, timeout time.Duration, batch []*models.EventKV) (int, error) {
@@ -37,7 +26,10 @@ func ReadBatch(ctx context.Context, c MsgReader, timeout time.Duration, batch []
 		default:
 			msg, err := c.ReadMessage(timeout)
 			if err != nil {
-				return i, fmt.Errorf("error reading message")
+				return i, fmt.Errorf("error reading message:%v", err)
+			}
+			if msg == nil {
+				continue
 			}
 			batch[i] = kafkaMsgToEventKV(msg)
 			i++
