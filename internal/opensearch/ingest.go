@@ -38,18 +38,27 @@ func (ing *Ingestor) Run(ctx context.Context) error {
 	}
 
 	var wg sync.WaitGroup
+	errChan := make(chan error)
 	for i := 0; i < ing.OpenSearchConfig.Concurrency; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for chunk := range ing.sendChan {
 				if err := postBulk(ing.hc, "cdc", chunk); err != nil {
-					log.Println("bulk post failed with error:", err.Error())
+					errChan <- fmt.Errorf("bulk post error:%s", err.Error())
 				}
 			}
 		}()
 	}
 	defer ing.kc.Close()
+
+	done := make(chan struct{}, 1)
+	go func() {
+		defer close(done)
+		for err := range errChan {
+			log.Println(err)
+		}
+	}()
 
 	batch := make([]*ckafka.Message, 100)
 	var readErr error
@@ -66,13 +75,18 @@ func (ing *Ingestor) Run(ctx context.Context) error {
 			break
 		}
 		if n > 0 {
+			log.Printf("read %d messages from %s\n", n, ing.KafkaConfig.Topic)
 			data := transformMessages(batch[:n])
 			ing.sendChan <- data
 			clear(batch)
 		}
 	}
+
 	close(ing.sendChan)
 	wg.Wait()
+	close(errChan)
+	<-done
+
 	return readErr
 }
 
