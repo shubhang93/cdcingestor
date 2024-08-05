@@ -51,7 +51,7 @@ func (ing *Ingestor) Run(ctx context.Context) error {
 	}
 	defer ing.kc.Close()
 
-	batch := make([]*kafmodels.EventKV, 100)
+	batch := make([]*ckafka.Message, 100)
 	var readErr error
 	run := true
 	for run {
@@ -66,8 +66,7 @@ func (ing *Ingestor) Run(ctx context.Context) error {
 			break
 		}
 		if n > 0 {
-			data := make([]*kafmodels.EventKV, n)
-			copy(data, batch[:n])
+			data := transformMessages(batch[:n])
 			ing.sendChan <- data
 			clear(batch)
 		}
@@ -75,6 +74,17 @@ func (ing *Ingestor) Run(ctx context.Context) error {
 	close(ing.sendChan)
 	wg.Wait()
 	return readErr
+}
+
+func transformMessages(messages []*ckafka.Message) []*kafmodels.EventKV {
+	res := make([]*kafmodels.EventKV, len(messages))
+	for i, message := range messages {
+		res[i] = &kafmodels.EventKV{
+			Key:   string(message.Key),
+			Value: message.Value,
+		}
+	}
+	return res
 }
 
 func (ing *Ingestor) init() error {

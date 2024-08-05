@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/shubhang93/cdcingestor/internal/kafka/models"
 	"io"
 	"time"
 )
@@ -15,7 +14,7 @@ type MsgReader interface {
 	io.Closer
 }
 
-func ReadBatch(ctx context.Context, c MsgReader, timeout time.Duration, batch []*models.EventKV) (int, error) {
+func ReadBatch(ctx context.Context, c MsgReader, timeout time.Duration, batch []*kafka.Message) (int, error) {
 	var i int
 	timeoutAfter := time.After(timeout)
 	for i < cap(batch) {
@@ -36,17 +35,9 @@ func ReadBatch(ctx context.Context, c MsgReader, timeout time.Duration, batch []
 			if msg == nil {
 				continue
 			}
-			batch[i] = kafkaMsgToEventKV(msg)
+			batch[i] = msg
 			i++
 		}
 	}
 	return i, nil
-}
-
-func kafkaMsgToEventKV(msg *kafka.Message) *models.EventKV {
-	event := models.EventKV{
-		Key:   string(msg.Key),
-		Value: msg.Value,
-	}
-	return &event
 }
