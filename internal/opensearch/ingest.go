@@ -33,6 +33,10 @@ type Ingestor struct {
 }
 
 func (ing *Ingestor) Run(ctx context.Context) error {
+	if err := ing.init(); err != nil {
+		return err
+	}
+
 	var wg sync.WaitGroup
 	for i := 0; i < ing.OpenSearchConfig.Concurrency; i++ {
 		wg.Add(1)
@@ -76,12 +80,7 @@ func (ing *Ingestor) Run(ctx context.Context) error {
 func (ing *Ingestor) init() error {
 
 	if ing.consumerInitFunc == nil {
-		ing.consumerInitFunc = func(config KafkaConfig) (kafka.MsgReader, error) {
-			return ckafka.NewConsumer(&ckafka.ConfigMap{
-				"boostrap.servers": config.BootstrapServer,
-				"group.id":         "cdc_consumer",
-			})
-		}
+		ing.consumerInitFunc = newConsumer
 	}
 
 	if ing.clientInitFunc == nil {
@@ -101,4 +100,18 @@ func (ing *Ingestor) init() error {
 
 	return nil
 
+}
+
+func newConsumer(config KafkaConfig) (kafka.MsgReader, error) {
+	kc, err := ckafka.NewConsumer(&ckafka.ConfigMap{
+		"boostrap.servers": config.BootstrapServer,
+		"group.id":         "cdc_consumer",
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := kc.Subscribe(config.Topic, nil); err != nil {
+		return nil, err
+	}
+	return kc, nil
 }

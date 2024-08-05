@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"github.com/shubhang93/cdcingestor/internal/kafka"
 	"github.com/shubhang93/cdcingestor/internal/opensearch"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
 const usage = `Usage:
@@ -60,13 +63,35 @@ func main() {
 		flags := flag.NewFlagSet("kafka", flag.ExitOnError)
 		bootstrapServer := flags.String("bootstrap-server", "", "-bootstrap-server=localhost:9092")
 		topic := flags.String("topic", "", "-topic=topic")
+		openSearchAddr := flags.String("opensearch-addr", "", "-opensearch-addr=localhost:9002")
 
 		if err := flags.Parse(args); err != nil {
-			if *topic == "" || *bootstrapServer == "" {
+			if *topic == "" || *bootstrapServer == "" || *openSearchAddr == "" {
 				flags.PrintDefaults()
+				os.Exit(1)
 			}
 		}
-		ing := opensearch.Ingestor{}
-	}
+		ing := opensearch.Ingestor{
+			KafkaConfig: opensearch.KafkaConfig{
+				BootstrapServer: *bootstrapServer,
+				Topic:           *topic,
+			},
+			OpenSearchConfig: opensearch.Config{
+				Address:     *openSearchAddr,
+				Concurrency: 2,
+			},
+		}
 
+		ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+		defer cancel()
+		err := ing.Run(ctx)
+		if err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+	default:
+		_, _ = fmt.Fprintf(os.Stderr, "unknown command:%s\n", cmd)
+		os.Exit(1)
+	}
+	
 }

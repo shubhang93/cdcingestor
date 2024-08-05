@@ -3,6 +3,7 @@ package opensearch
 import (
 	"context"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	kafkainternal "github.com/shubhang93/cdcingestor/internal/kafka"
 	"github.com/shubhang93/cdcingestor/internal/kafka/models"
 	"github.com/stretchr/testify/mock"
 	"io"
@@ -49,8 +50,12 @@ func TestIngestor_Run(t *testing.T) {
 			Address:     "localhost:9002",
 			Concurrency: 1,
 		},
-		hc:       &client,
-		kc:       &reader,
+		consumerInitFunc: func(config KafkaConfig) (kafkainternal.MsgReader, error) {
+			return &reader, nil
+		},
+		clientInitFunc: func() httpDoer {
+			return &client
+		},
 		sendChan: make(chan []*models.EventKV),
 	}
 
