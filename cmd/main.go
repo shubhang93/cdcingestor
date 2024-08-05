@@ -93,5 +93,5 @@ func main() {
 		_, _ = fmt.Fprintf(os.Stderr, "unknown command:%s\n", cmd)
 		os.Exit(1)
 	}
-	
+
 }

@@ -104,8 +104,8 @@ func (ing *Ingestor) init() error {
 
 func newConsumer(config KafkaConfig) (kafka.MsgReader, error) {
 	kc, err := ckafka.NewConsumer(&ckafka.ConfigMap{
-		"boostrap.servers": config.BootstrapServer,
-		"group.id":         "cdc_consumer",
+		"bootstrap.servers": config.BootstrapServer,
+		"group.id":          "cdc_consumer",
 	})
 	if err != nil {
 		return nil, err
