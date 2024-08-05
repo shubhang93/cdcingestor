@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/google/go-cmp/cmp"
+	"github.com/shubhang93/cdcingestor/internal/kafka/models"
 	"math/rand/v2"
 	"strings"
 	"testing"
@@ -16,7 +17,7 @@ func TestIngestor_Run(t *testing.T) {
 
 	type TestCase struct {
 		Input     string
-		Want      []EventKV
+		Want      []models.EventKV
 		WantCount int
 	}
 
@@ -27,7 +28,7 @@ func TestIngestor_Run(t *testing.T) {
 {"after": {"key": "foo3","value":{"data": "bar"}}}
 {"after": {"key": "foo4","value":{"data": "foo42"}}}
 {"after": {"key": "foo5","value":{"data": "foobar"}}}`,
-			Want: []EventKV{{
+			Want: []models.EventKV{{
 				Key:   "foo1",
 				Value: json.RawMessage(`{"data": "bar"}`),
 			}, {
@@ -89,7 +90,7 @@ func TestIngestor_Run(t *testing.T) {
 
 }
 
-func consume(ctx context.Context, bootstrapServer string, topic string) ([]EventKV, error) {
+func consume(ctx context.Context, bootstrapServer string, topic string) ([]models.EventKV, error) {
 
 	kc, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": bootstrapServer,
@@ -104,7 +105,7 @@ func consume(ctx context.Context, bootstrapServer string, topic string) ([]Event
 		return nil, err
 	}
 
-	var ekvs []EventKV
+	var ekvs []models.EventKV
 
 	for {
 		select {
@@ -115,7 +116,7 @@ func consume(ctx context.Context, bootstrapServer string, topic string) ([]Event
 		e := kc.Poll(100)
 		switch ev := e.(type) {
 		case *kafka.Message:
-			ekv := EventKV{
+			ekv := models.EventKV{
 				Key:   string(ev.Key),
 				Value: ev.Value,
 			}

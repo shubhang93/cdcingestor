@@ -5,31 +5,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/shubhang93/cdcingestor/internal/kafka/models"
 	"io"
 	"log"
 )
 
 const producerFlushTimeoutMS = 10000
 
+type Ingestor struct {
+	Source io.Reader
+	Config IngestorConfig
+}
+
 type IngestorConfig struct {
 	BootstrapServer string
 	Topic           string
 	Concurrency     int
 	ChunkSize       int
-}
-
-type EventKV struct {
-	Key   string          `json:"key"`
-	Value json.RawMessage `json:"value"`
-}
-
-type CDCEvent struct {
-	After EventKV `json:"after"`
-}
-
-type Ingestor struct {
-	Source io.Reader
-	Config IngestorConfig
 }
 
 func (i *Ingestor) Ingest() (int, error) {
@@ -60,7 +52,7 @@ func (i *Ingestor) Ingest() (int, error) {
 
 	count := 0
 	br := bufio.NewReader(i.Source)
-	batch := make([]EventKV, i.Config.ChunkSize)
+	batch := make([]models.EventKV, i.Config.ChunkSize)
 	for {
 		line, err := br.ReadBytes('\n')
 		if err != nil && err != io.EOF {
@@ -71,7 +63,7 @@ func (i *Ingestor) Ingest() (int, error) {
 			break
 		}
 
-		var event CDCEvent
+		var event models.CDCEvent
 		if err := json.Unmarshal(line, &event); err != nil {
 			return count + 1, fmt.Errorf("error unmarshaling cdc event on line:%d:%w", count+1, err)
 		}
