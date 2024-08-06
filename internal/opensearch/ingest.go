@@ -1,7 +1,6 @@
 package opensearch
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	ckafka "github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -135,7 +134,7 @@ func (ing *Ingestor) init() error {
 func newConsumer(config KafkaConfig) (kafka.MsgReader, error) {
 	kc, err := ckafka.NewConsumer(&ckafka.ConfigMap{
 		"bootstrap.servers": config.BootstrapServer,
-		"auto.offset.reset": cmp.Or(config.AutoOffsetReset, "earliest"),
+		"auto.offset.reset": config.AutoOffsetReset,
 		"group.id":          "cdc_consumer",
 		"debug":             "broker",
 	})

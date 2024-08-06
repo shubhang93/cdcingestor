@@ -80,6 +80,7 @@ func main() {
 			KafkaConfig: opensearch.KafkaConfig{
 				BootstrapServer: *bootstrapServer,
 				Topic:           *topic,
+				AutoOffsetReset: "earliest",
 			},
 			OpenSearchConfig: opensearch.Config{
 				Address:           *openSearchAddr,
