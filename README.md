@@ -2,7 +2,7 @@
 
 Ingest JSON logs from a JSON stream
 
-## instructions to run
+## Instructions to run
 
 ### Tests
 
@@ -11,12 +11,14 @@ docker-compose up -d
 make test
 ```
 
-### build the binary
+### Build the binary
+
 ```shell
 make build
 ```
 
-### run the opensearch ingestor
+### Run the Opensearch ingestor
+
 ```shell
 bin/cdcingestor ingest-opensearch \ 
 -bootstrap-server=localhost:9092 \ 
@@ -24,7 +26,8 @@ bin/cdcingestor ingest-opensearch \
 -opensearch-addr=localhost:9002
 ```
 
-### run the kakfa ingestor
+### Run the Kakfa ingestor
+
 ```shell
 bin/cdcingestor push-kafka \ 
 -bootstrap-server=localhost:9092 \ 
