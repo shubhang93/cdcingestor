@@ -42,15 +42,15 @@ func (ing *Ingestor) Run(ctx context.Context) error {
 	errChan := make(chan error)
 	for i := 0; i < ing.OpenSearchConfig.IngestConcurrency; i++ {
 		wg.Add(1)
-		go func() {
+		go func(i int) {
 			defer wg.Done()
 			for chunk := range ing.sendChan {
 				if err := appendBulk(ing.hc, ing.OpenSearchConfig.IngestIndex, chunk); err != nil {
 					errChan <- fmt.Errorf("bulk post error:%s", err.Error())
 				}
-				log.Printf("ingested %d records into opensearch\n", len(chunk))
+				log.Printf("[worker-%d]:ingested %d records into opensearch\n", i, len(chunk))
 			}
-		}()
+		}(i)
 	}
 	defer ing.kc.Close()
 
