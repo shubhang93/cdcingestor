@@ -4,7 +4,7 @@ test:
 	go test -race -p 1 -race -v $(TEST_PKGS)
 
 ci-test:
-	docker-compose up -d
+	docker compose up -d
 	go test -race -p 1 -race -v $(TEST_PKGS)
 
 build:
