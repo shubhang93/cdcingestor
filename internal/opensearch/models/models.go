@@ -58,7 +58,7 @@ type OpenSearchError struct {
 
 type OpenSearchMeta struct {
 	Index string `json:"_index"`
-	ID    string `json:"_id"`
+	ID    string `json:"_id,omitempty"`
 }
 type OpenSearchActionMetadata map[string]OpenSearchMeta
 type UpsertDocWrapper struct {

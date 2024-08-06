@@ -18,8 +18,9 @@ type KafkaConfig struct {
 }
 
 type Config struct {
-	Address     string
-	Concurrency int
+	Address           string
+	IngestIndex       string
+	IngestConcurrency int
 }
 
 type Ingestor struct {
@@ -39,14 +40,15 @@ func (ing *Ingestor) Run(ctx context.Context) error {
 
 	var wg sync.WaitGroup
 	errChan := make(chan error)
-	for i := 0; i < ing.OpenSearchConfig.Concurrency; i++ {
+	for i := 0; i < ing.OpenSearchConfig.IngestConcurrency; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for chunk := range ing.sendChan {
-				if err := upsertBulk(ing.hc, "cdc", chunk); err != nil {
+				if err := appendBulk(ing.hc, ing.OpenSearchConfig.IngestIndex, chunk); err != nil {
 					errChan <- fmt.Errorf("bulk post error:%s", err.Error())
 				}
+				log.Printf("ingested %d records into opensearch\n", len(chunk))
 			}
 		}()
 	}

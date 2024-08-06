@@ -9,24 +9,19 @@ import (
 	"github.com/shubhang93/cdcingestor/internal/opensearch/models"
 	"io"
 	"net/http"
-	"path"
 )
 
 type httpDoer interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-func createBulk(client httpDoer, index string, events []*kafmodels.EventKV) error {
-	return postBulk(client, "create", index, events)
+func appendBulk(client httpDoer, index string, events []*kafmodels.EventKV) error {
+	return postBulk(client, index, events)
 }
 
-func upsertBulk(client httpDoer, index string, events []*kafmodels.EventKV) error {
-	return postBulk(client, "upsert", index, events)
-}
-
-func postBulk(client httpDoer, action string, index string, events []*kafmodels.EventKV) error {
+func postBulk(client httpDoer, index string, events []*kafmodels.EventKV) error {
 	var body bytes.Buffer
-	if err := encodeEvents(events, action, index, &body); err != nil {
+	if err := encodeEvents(events, index, &body); err != nil {
 		return fmt.Errorf("error encoding json lines:%w", err)
 	}
 
@@ -74,40 +69,23 @@ func collateErrors(items []models.OpenSearchItem) error {
 	return errors.Join(errs...)
 }
 
-func encodeEvents(data []*kafmodels.EventKV, action string, index string, dest io.Writer) error {
+func encodeEvents(data []*kafmodels.EventKV, index string, dest io.Writer) error {
 	je := json.NewEncoder(dest)
 	for i, event := range data {
-		id := path.Base(event.Key)
 		meta := models.OpenSearchMeta{
 			Index: index,
-			ID:    id,
 		}
 
-		actionName := action
-		if actionName == "upsert" {
-			actionName = "update"
-		}
-
-		err := je.Encode(models.OpenSearchActionMetadata{actionName: meta})
+		err := je.Encode(models.OpenSearchActionMetadata{"create": meta})
 
 		if err != nil {
 			return fmt.Errorf("json encode error for meta %d:%w", i, err)
 		}
 
-		switch action {
-		case "create":
-			if err := je.Encode(event.Value); err != nil {
-				return fmt.Errorf("json encode error for data %d:%w", i, err)
-			}
-		case "upsert":
-			payload := models.UpsertDocWrapper{
-				Doc:         event.Value,
-				DocAsUpsert: true,
-			}
-			if err := je.Encode(payload); err != nil {
-				return fmt.Errorf("json encode error for data %d:%w", i, err)
-			}
+		if err := je.Encode(event.Value); err != nil {
+			return fmt.Errorf("json encode error for data %d:%w", i, err)
 		}
+
 	}
 	return nil
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"flag"
 	"fmt"
@@ -64,6 +65,7 @@ func main() {
 		bootstrapServer := flags.String("bootstrap-server", "", "-bootstrap-server=localhost:9092")
 		topic := flags.String("topic", "", "-topic=topic")
 		openSearchAddr := flags.String("opensearch-addr", "", "-opensearch-addr=localhost:9002")
+		ingestIndex := flags.String("ingest-index", "", "-ingest-index=index")
 
 		if err := flags.Parse(args); err != nil {
 			if *topic == "" || *bootstrapServer == "" || *openSearchAddr == "" {
@@ -77,8 +79,9 @@ func main() {
 				Topic:           *topic,
 			},
 			OpenSearchConfig: opensearch.Config{
-				Address:     *openSearchAddr,
-				Concurrency: 2,
+				Address:           *openSearchAddr,
+				IngestIndex:       cmp.Or(*ingestIndex, "cdc"),
+				IngestConcurrency: 2,
 			},
 		}
 

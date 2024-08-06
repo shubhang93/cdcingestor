@@ -47,8 +47,8 @@ func TestIngestor_Run(t *testing.T) {
 			Topic:           "test_topic",
 		},
 		OpenSearchConfig: Config{
-			Address:     "localhost:9002",
-			Concurrency: 1,
+			Address:           "localhost:9002",
+			IngestConcurrency: 1,
 		},
 		consumerInitFunc: func(config KafkaConfig) (kafkainternal.MsgReader, error) {
 			return &reader, nil

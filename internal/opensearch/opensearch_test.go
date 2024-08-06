@@ -40,32 +40,12 @@ func Test_encodeJSONLines(t *testing.T) {
 {"key2":"value2"}
 `,
 		},
-		"action is upsert": {
-			Action: "upsert",
-			Input: []*models.EventKV{{
-				Key:   "foo/bar",
-				Value: json.RawMessage(`{"key":"value"}`),
-			}, {
-				Key:   "foo/bar1",
-				Value: json.RawMessage(`{"key1":"value1"}`),
-			}, {
-				Key:   "foo/bar2",
-				Value: json.RawMessage(`{"key2":"value2"}`),
-			}},
-			Want: `{"update":{"_index":"cdc","_id":"bar"}}
-{"doc":{"key":"value"},"doc_as_upsert":true}
-{"update":{"_index":"cdc","_id":"bar1"}}
-{"doc":{"key1":"value1"},"doc_as_upsert":true}
-{"update":{"_index":"cdc","_id":"bar2"}}
-{"doc":{"key2":"value2"},"doc_as_upsert":true}
-`,
-		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			var dst bytes.Buffer
-			err := encodeEvents(tc.Input, tc.Action, "cdc", &dst)
+			err := encodeEvents(tc.Input, "cdc", &dst)
 			if err != nil {
 				t.Errorf("encode error:%v", err)
 				return
@@ -93,7 +73,7 @@ func Test_openSearchBulkPost(t *testing.T) {
 
 	t.Logf("using index:%s\n", index)
 
-	err := postBulk(http.DefaultClient, "upsert", index, data)
+	err := postBulk(http.DefaultClient, index, data)
 	if err != nil {
 		t.Errorf("error posting to opensearch:%v", err)
 		return
