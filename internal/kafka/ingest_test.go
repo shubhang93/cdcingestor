@@ -63,7 +63,7 @@ func TestIngestor_Run(t *testing.T) {
 				},
 			}
 
-			ingestCount, err := ig.Run()
+			ingestCount, err := ig.Run(context.Background())
 			if err != nil {
 				t.Errorf("error ingesting:%v", err)
 				return
