@@ -23,6 +23,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer cancel()
+
 	cmd := args[0]
 	args = args[1:]
 	switch cmd {
@@ -54,7 +57,7 @@ func main() {
 				Topic:           *topic,
 			},
 		}
-		n, err := kig.Run()
+		n, err := kig.Run(ctx)
 		if err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
@@ -85,8 +88,6 @@ func main() {
 			},
 		}
 
-		ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-		defer cancel()
 		err := ing.Run(ctx)
 		if err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err.Error())
