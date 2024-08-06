@@ -20,8 +20,15 @@ make build
 ```shell
 bin/cdcingestor ingest-opensearch \ 
 -bootstrap-server=localhost:9092 \ 
--topic=cdc_events \ 
+-topic=<topic_name> \ 
 -opensearch-addr=localhost:9002
-
 ```
 
+### run the kakfa ingestor
+```shell
+bin/cdcingestor push-kafka \ 
+-bootstrap-server=localhost:9092 \ 
+-topic= <topic_name >\ 
+-file=stream.jsonl
+
+```
