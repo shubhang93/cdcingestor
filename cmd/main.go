@@ -54,7 +54,7 @@ func main() {
 				Topic:           *topic,
 			},
 		}
-		n, err := kig.Ingest()
+		n, err := kig.Run()
 		if err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)

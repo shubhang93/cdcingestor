@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -22,7 +23,7 @@ type IngestorConfig struct {
 	Topic           string
 }
 
-func (i *Ingestor) Ingest() (int, error) {
+func (i *Ingestor) Run(ctx context.Context) (int, error) {
 	kp, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers": i.Config.BootstrapServer,
 		"linger.ms":         25,
@@ -51,6 +52,13 @@ func (i *Ingestor) Ingest() (int, error) {
 	count := 0
 	br := bufio.NewReader(i.Source)
 	for {
+
+		select {
+		case <-ctx.Done():
+			return 0, nil
+		default:
+		}
+
 		line, err := br.ReadBytes('\n')
 		if err != nil && err != io.EOF {
 			return count + 1, fmt.Errorf("error reading line %d:%w", count+1, err)
