@@ -33,11 +33,11 @@ func Test_encodeJSONLines(t *testing.T) {
 				Value: json.RawMessage(`{"key2":"value2"}`),
 			}},
 			Want: `{"create":{"_index":"cdc"}}
-{"key":"value"}
+{"key":"foo/bar","value":{"key":"value"}}
 {"create":{"_index":"cdc"}}
-{"key1":"value1"}
+{"key":"foo/bar1","value":{"key1":"value1"}}
 {"create":{"_index":"cdc"}}
-{"key2":"value2"}
+{"key":"foo/bar2","value":{"key2":"value2"}}
 `,
 		},
 	}

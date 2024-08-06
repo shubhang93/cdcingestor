@@ -82,7 +82,7 @@ func encodeEvents(data []*kafmodels.EventKV, index string, dest io.Writer) error
 			return fmt.Errorf("json encode error for meta %d:%w", i, err)
 		}
 
-		if err := je.Encode(event.Value); err != nil {
+		if err := je.Encode(event); err != nil {
 			return fmt.Errorf("json encode error for data %d:%w", i, err)
 		}
 
