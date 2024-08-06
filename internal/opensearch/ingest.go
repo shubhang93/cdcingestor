@@ -44,7 +44,7 @@ func (ing *Ingestor) Run(ctx context.Context) error {
 		go func() {
 			defer wg.Done()
 			for chunk := range ing.sendChan {
-				if err := postBulk(ing.hc, "cdc", chunk); err != nil {
+				if err := upsertBulk(ing.hc, "cdc", chunk); err != nil {
 					errChan <- fmt.Errorf("bulk post error:%s", err.Error())
 				}
 			}

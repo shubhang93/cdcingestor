@@ -1,5 +1,7 @@
 package models
 
+import "encoding/json"
+
 type OpenSearchUpdate struct {
 	Index  string          `json:"_index"`
 	Type   string          `json:"_type"`
@@ -58,6 +60,8 @@ type OpenSearchMeta struct {
 	Index string `json:"_index"`
 	ID    string `json:"_id"`
 }
-type OpenSearchActionMetadata struct {
-	Create OpenSearchMeta `json:"create"`
+type OpenSearchActionMetadata map[string]OpenSearchMeta
+type UpsertDocWrapper struct {
+	Doc         json.RawMessage `json:"doc"`
+	DocAsUpsert bool            `json:"doc_as_upsert"`
 }
