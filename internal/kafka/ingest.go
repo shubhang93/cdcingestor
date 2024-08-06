@@ -20,8 +20,6 @@ type Ingestor struct {
 type IngestorConfig struct {
 	BootstrapServer string
 	Topic           string
-	Concurrency     int
-	ChunkSize       int
 }
 
 func (i *Ingestor) Ingest() (int, error) {
