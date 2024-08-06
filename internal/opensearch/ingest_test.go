@@ -39,62 +39,108 @@ func (m *mockMessageReader) Close() error {
 }
 
 func TestIngestor_Run(t *testing.T) {
-	client := mockHTTPClient{}
-	reader := mockMessageReader{}
-	ing := Ingestor{
-		KafkaConfig: KafkaConfig{
-			BootstrapServer: "localhost:9092",
-			Topic:           "test_topic",
-		},
-		OpenSearchConfig: Config{
-			Address:           "localhost:9002",
-			IngestConcurrency: 1,
-		},
-		consumerInitFunc: func(config KafkaConfig) (kafkainternal.MsgReader, error) {
-			return &reader, nil
-		},
-		clientInitFunc: func() httpDoer {
-			return &client
-		},
-		sendChan: make(chan []*models.EventKV),
-	}
+	t.Run("post json records from kafka to opensearch", func(t *testing.T) {
+		client := mockHTTPClient{}
+		reader := mockMessageReader{}
+		ing := Ingestor{
+			KafkaConfig: KafkaConfig{
+				BootstrapServer: "localhost:9092",
+				Topic:           "test_topic",
+			},
+			OpenSearchConfig: Config{
+				Address:           "localhost:9002",
+				IngestConcurrency: 1,
+			},
+			consumerInitFunc: func(config KafkaConfig) (kafkainternal.MsgReader, error) {
+				return &reader, nil
+			},
+			clientInitFunc: func() httpDoer {
+				return &client
+			},
+			sendChan: make(chan []*models.EventKV),
+		}
 
-	topic := "foo"
-	expectedMessages := []*kafka.Message{{
-		TopicPartition: kafka.TopicPartition{
-			Topic: &topic,
-		},
-		Key:   []byte("foo1"),
-		Value: []byte(`{"key1":"value1"}`),
-	}, {
-		TopicPartition: kafka.TopicPartition{
-			Topic: &topic,
-		},
-		Key:   []byte("foo2"),
-		Value: []byte(`{"key2":"value2"}`),
-	}, {
-		TopicPartition: kafka.TopicPartition{
-			Topic: &topic,
-		},
-		Key:   []byte("foo3"),
-		Value: []byte(`{"key3":"value3"}`),
-	}}
-	reader.On("ReadMessage", mock.Anything).Return(expectedMessages[0], nil).Once()
-	reader.On("ReadMessage", mock.Anything).Return(expectedMessages[1], nil).Once()
-	reader.On("ReadMessage", mock.Anything).Return(expectedMessages[2], nil).Once()
-	reader.On("ReadMessage", mock.Anything).Return(nil, nil)
+		topic := "foo"
+		expectedMessages := []*kafka.Message{{
+			TopicPartition: kafka.TopicPartition{
+				Topic: &topic,
+			},
+			Key:   []byte("foo1"),
+			Value: []byte(`{"key1":"value1"}`),
+		}, {
+			TopicPartition: kafka.TopicPartition{
+				Topic: &topic,
+			},
+			Key:   []byte("foo2"),
+			Value: []byte(`{"key2":"value2"}`),
+		}, {
+			TopicPartition: kafka.TopicPartition{
+				Topic: &topic,
+			},
+			Key:   []byte("foo3"),
+			Value: []byte(`{"key3":"value3"}`),
+		}}
+		reader.On("ReadMessage", mock.Anything).Return(expectedMessages[0], nil).Once()
+		reader.On("ReadMessage", mock.Anything).Return(expectedMessages[1], nil).Once()
+		reader.On("ReadMessage", mock.Anything).Return(expectedMessages[2], nil).Once()
+		reader.On("ReadMessage", mock.Anything).Return(nil, nil)
 
-	client.On("Do", mock.AnythingOfType("*http.Request")).Return(
-		&http.Response{
-			StatusCode: 200,
-			Body:       io.NopCloser(strings.NewReader(`{}`)),
-		},
-		nil)
+		client.On("Do", mock.AnythingOfType("*http.Request")).Return(
+			&http.Response{
+				StatusCode: 200,
+				Body:       io.NopCloser(strings.NewReader(`{}`)),
+			},
+			nil)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Millisecond)
-	defer cancel()
-	if err := ing.Run(ctx); err != nil {
-		t.Errorf("run error:%v", err)
-	}
+		ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Millisecond)
+		defer cancel()
+		if err := ing.Run(ctx); err != nil {
+			t.Errorf("run error:%v", err)
+		}
+	})
+
+	t.Run("should not call the opensearch post API if no records were consumed from kafka", func(t *testing.T) {
+
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("opensearch API was called")
+			}
+		}()
+
+		client := mockHTTPClient{}
+		reader := mockMessageReader{}
+		ing := Ingestor{
+			KafkaConfig: KafkaConfig{
+				BootstrapServer: "localhost:9092",
+				Topic:           "test_topic",
+			},
+			OpenSearchConfig: Config{
+				Address:           "localhost:9002",
+				IngestConcurrency: 1,
+			},
+			consumerInitFunc: func(config KafkaConfig) (kafkainternal.MsgReader, error) {
+				return &reader, nil
+			},
+			clientInitFunc: func() httpDoer {
+				return &client
+			},
+			sendChan: make(chan []*models.EventKV),
+		}
+
+		reader.On("ReadMessage", mock.Anything).Return(nil, nil)
+
+		client.On("Do", mock.AnythingOfType("*http.Request")).Return(
+			&http.Response{
+				StatusCode: 200,
+				Body:       io.NopCloser(strings.NewReader(`{}`)),
+			},
+			nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Millisecond)
+		defer cancel()
+		if err := ing.Run(ctx); err != nil {
+			t.Errorf("run error:%v", err)
+		}
+	})
 
 }
