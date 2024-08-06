@@ -1,6 +1,6 @@
 module github.com/shubhang93/cdcingestor
 
-go 1.22.1
+go 1.22
 
 require (
 	github.com/confluentinc/confluent-kafka-go/v2 v2.5.0
