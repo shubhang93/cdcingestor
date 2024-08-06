@@ -5,6 +5,7 @@ test:
 
 ci-test:
 	docker compose up -d
+	sleep 30
 	go test -race -p 1 -race -v $(TEST_PKGS)
 
 build:
