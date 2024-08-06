@@ -52,7 +52,6 @@ func (i *Ingestor) Ingest() (int, error) {
 
 	count := 0
 	br := bufio.NewReader(i.Source)
-	batch := make([]models.EventKV, i.Config.ChunkSize)
 	for {
 		line, err := br.ReadBytes('\n')
 		if err != nil && err != io.EOF {
@@ -67,8 +66,6 @@ func (i *Ingestor) Ingest() (int, error) {
 		if err := json.Unmarshal(line, &event); err != nil {
 			return count + 1, fmt.Errorf("error unmarshaling cdc event on line:%d:%w", count+1, err)
 		}
-
-		batch = append(batch, event.After)
 
 		message := kafka.Message{
 			TopicPartition: kafka.TopicPartition{
